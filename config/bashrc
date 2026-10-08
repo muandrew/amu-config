@@ -87,6 +87,11 @@ function gamr {
     return 0
 }
 
+# https://superuser.com/questions/702156/rename-iterm2-tab-from-within-tmux
+function trn {
+    echo -ne "\033]0;"$@"\007"
+}
+
 #android
 alias acat="adb logcat"
 alias adbtxt="adb shell input text"
