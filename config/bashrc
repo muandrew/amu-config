@@ -87,10 +87,67 @@ function gamr {
     return 0
 }
 
-# https://superuser.com/questions/702156/rename-iterm2-tab-from-within-tmux
-function trn {
-    echo -ne "\033]0;"$@"\007"
+# Device labels live outside the repo so each machine can have its own name.
+if [[ -f "$HOME/.config/amu_trn/env" ]]; then
+    source "$HOME/.config/amu_trn/env"
+fi
+
+function _amu_tmux_refresh {
+    local client
+    while IFS= read -r client; do
+        tmux refresh-client -S -t "$client" || return
+    done < <(tmux list-clients -F '#{client_name}')
 }
+
+function _amu_tmux_device_label {
+    tmux set-environment -g AMU_TRN "${AMU_TRN:-}" || return
+    # A global option avoids stale copies of AMU_TRN in session environments.
+    tmux set-option -g @amu-trn "${AMU_TRN:-}"
+}
+
+function trn {
+    if (( $# == 0 )); then
+        printf 'Usage: trn <device label> (use "" to clear)\n' >&2
+        return 1
+    fi
+    local label="$*" env_dir="$HOME/.config/amu_trn" env_file
+    mkdir -p "$env_dir" || return
+    env_file=$(mktemp "$env_dir/env.XXXXXX") || return
+    if ! printf 'export AMU_TRN=%q\n' "$label" > "$env_file" ||
+       ! mv -f "$env_file" "$env_dir/env"; then
+        rm -f "$env_file"
+        return 1
+    fi
+    export AMU_TRN="$label"
+    if command -v tmux >/dev/null && tmux has-session 2>/dev/null; then
+        _amu_tmux_device_label || return
+        _amu_tmux_refresh || return
+    fi
+    if [[ -z "${TMUX:-}" ]]; then
+        printf '\033]0;%s\007' "$label"
+    fi
+}
+
+function tsrn {
+    if (( $# == 0 )); then
+        printf 'Usage: tsrn <session label> (use "" to clear)\n' >&2
+        return 1
+    fi
+    if [[ -z "${TMUX:-}" ]]; then
+        printf 'tsrn must be run inside tmux.\n' >&2
+        return 1
+    fi
+    local session
+    session=$(tmux display-message -p -t "${TMUX_PANE:?}" '#{session_id}') || return
+    tmux set-environment -t "$session" AMU_TSRN "$*" || return
+    tmux set-option -t "$session" @amu-tsrn "$*" || return
+    _amu_tmux_refresh
+}
+
+# New panes read the persisted device label, rather than an inherited old value.
+if [[ -n "${TMUX:-}" ]] && command -v tmux >/dev/null; then
+    _amu_tmux_device_label
+fi
 
 #android
 alias acat="adb logcat"
