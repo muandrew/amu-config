@@ -7,10 +7,33 @@ set_up_config() {
 
   VRC_SRC="${INSTALL_DIR}/config/${dir}"
   VRC_DEST_STR="${HOME}/.config/${dir}"
+  if [[ "${dir}" == "vim" ]]; then
+    local history="${VRC_DEST_STR}/.netrwhist"
+    local saved_history=""
+
+    # Migrate an older directory symlink while keeping netrw's history in
+    # the user's config directory, outside this repository.
+    if [[ -L "${VRC_DEST_STR}" && "$(readlink -f -- "${VRC_DEST_STR}")" == "${VRC_SRC}" ]]; then
+      if [[ -f "${history}" ]]; then
+        saved_history="$(mktemp "${HOME}/.netrwhist.XXXXXX")"
+        cp -p "${history}" "${saved_history}"
+      fi
+      rm "${VRC_DEST_STR}"
+      mkdir -p "${VRC_DEST_STR}"
+      if [[ -n "${saved_history}" ]]; then
+        mv "${saved_history}" "${history}"
+      fi
+    fi
+
+    mkdir -p "${VRC_DEST_STR}"
+    VRC_SRC="${VRC_SRC}/vimrc"
+    VRC_DEST_STR="${VRC_DEST_STR}/vimrc"
+  fi
+
   # -e[ither] -f[ile] or -d[irectory] exists
   if [[ ! -e "${VRC_DEST_STR}" ]]; then
     ln -s "${VRC_SRC}" "${VRC_DEST_STR}" 
-    echo "linked ${VRC_SRC} to ${VRC_SRC}✅"
+    echo "linked ${VRC_SRC} to ${VRC_DEST_STR}✅"
   else
     echo "$VRC_DEST_STR already exists, skipping. ❌"
   fi
